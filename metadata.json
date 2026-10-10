@@ -1,0 +1,6 @@
+{
+  "name": "Budget 2027 SME Policy Impact Analyzer",
+  "description": "Comprehensive policy analysis and structured rule extraction for MSMEs under Malaysia Budget 2027 and Economic Outlook.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
