@@ -1,5 +1,54 @@
 import { GoogleGenAI, Type } from '@google/genai';
 
+const asNumber = (value: unknown) => Math.max(0, Number(value) || 0);
+
+function createRulesBasedPrediction(input: Record<string, unknown>) {
+  const employeeCount = asNumber(input.employeeCount);
+  const minWageWorkers = asNumber(input.minWageWorkers);
+  const monthlyDieselLiters = asNumber(input.monthlyDieselLiters);
+  const foreignWorkerCount = asNumber(input.foreignWorkerCount);
+  const plannedAiSpend = asNumber(input.plannedAiSpend);
+  const chargeableIncome = asNumber(input.chargeableIncome);
+  const enrolledPwp = Boolean(input.enrolledPwp);
+  const businessName = String(input.businessName || 'this SME');
+  const annualWageIncrease = minWageWorkers * 200 * 12;
+  const annualFuelExposure = Math.max(0, monthlyDieselLiters - 300) * 0.7 * 12;
+  const foreignWorkerLimit = Math.floor(employeeCount * 0.1);
+  const foreignWorkerExposure = Math.max(0, foreignWorkerCount - foreignWorkerLimit) * 3000;
+  const taxRate = chargeableIncome <= 150000 ? 0.15 : chargeableIncome <= 600000 ? 0.17 : 0.24;
+  const aiRelief = plannedAiSpend * taxRate;
+  const pwpBenefit = enrolledPwp ? minWageWorkers * 250 * 12 : 0;
+  const totalCost = Math.round(annualWageIncrease + annualFuelExposure + foreignWorkerExposure);
+  const totalBenefits = Math.round(aiRelief + pwpBenefit);
+
+  return {
+    summary: `${businessName} has an estimated 2027 net impact of RM ${Math.abs(totalBenefits - totalCost).toLocaleString()}. This rules-based estimate uses the selected profile inputs and published planning assumptions; confirm eligibility and final rates with the relevant agencies.`,
+    estimated_annual_cost_increase_myr: totalCost,
+    estimated_annual_benefits_myr: totalBenefits,
+    estimated_net_impact_myr: totalBenefits - totalCost,
+    cost_breakdown: [
+      { item: 'Minimum-wage uplift', amount_myr: Math.round(annualWageIncrease), explanation: 'Assumes a RM200 monthly uplift for each worker currently near the statutory floor.' },
+      { item: 'Fuel above BUDI quota', amount_myr: Math.round(annualFuelExposure), explanation: 'Applies a RM0.70/litre planning differential to monthly diesel use above the 300L quota.' },
+      ...(foreignWorkerExposure ? [{ item: 'Foreign-worker quota exposure', amount_myr: Math.round(foreignWorkerExposure), explanation: 'Planning allowance where foreign-worker headcount exceeds 10% of the stated workforce.' }] : []),
+    ],
+    benefits_breakdown: [
+      ...(aiRelief ? [{ item: 'AI and cloud tax relief', amount_myr: Math.round(aiRelief), explanation: `Estimated tax saving using a ${(taxRate * 100).toFixed(0)}% marginal SME tax rate on eligible digital spend.` }] : []),
+      ...(pwpBenefit ? [{ item: 'Progressive Wage Policy incentive', amount_myr: Math.round(pwpBenefit), explanation: 'Uses a RM250 monthly planning assumption for eligible workers, subject to programme conditions.' }] : []),
+    ],
+    compliance_actions: [
+      { title: 'Check e-Invoice readiness', status: 'Required', deadline: 'Before the applicable LHDN rollout date', description: 'Confirm threshold, invoicing process and MyInvois integration requirements.' },
+      { title: 'Move wages through bank accounts', status: 'Required', deadline: '2027 planning cycle', description: 'Validate payroll controls and employee account records before implementation.' },
+      ...(foreignWorkerExposure ? [{ title: 'Review foreign-worker quota', status: 'Urgent', deadline: 'Before 2027 workforce planning', description: 'Model recruitment, retention and automation options to reduce quota exposure.' }] : []),
+    ],
+    strategic_recommendations: [
+      'Validate the wage baseline and phase the payroll increase into the 2027 budget.',
+      'Document eligible AI and cloud subscriptions before filing any tax claim.',
+      'Use the result as a planning estimate, then confirm policy eligibility with an accountant or the relevant agency.',
+    ],
+    economic_outlook_context: 'Rules-based planning estimate generated locally because an AI provider key is not configured. It is intended for scenario planning, not tax or legal advice.',
+  };
+}
+
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -23,8 +72,10 @@ export default async function handler(req: any, res: any) {
 
     const apiKey = process.env.GEMINI_API_KEY || '';
     if (!apiKey) {
-      return res.status(500).json({
-        error: 'GEMINI_API_KEY environment variable is not configured.',
+      return res.status(200).json({
+        success: true,
+        engine: 'rules-based',
+        prediction: createRulesBasedPrediction(req.body || {}),
       });
     }
 
@@ -184,6 +235,7 @@ Return a valid JSON object with: summary, estimated_annual_cost_increase_myr, es
 
     return res.status(200).json({
       success: true,
+      engine: 'gemini',
       prediction: parsedPrediction,
     });
   } catch (err: any) {
